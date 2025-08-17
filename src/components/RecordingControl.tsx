@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Play, Square, Camera, Package, Clock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { apiCall, API_CONFIG } from "@/lib/api-config";
 
 export const RecordingControl = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -13,31 +14,55 @@ export const RecordingControl = () => {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [systemStatus, setSystemStatus] = useState<"online" | "offline" | "error">("online");
 
-  const handleStartRecording = () => {
+  const handleStartRecording = async () => {
     if (!orderNumber.trim()) {
       toast.error("Please enter an order number to start recording");
       return;
     }
     
-    setIsRecording(true);
-    setRecordingDuration(0);
-    toast.success(`Recording started for order ${orderNumber}`);
-    
-    // Simulate recording duration counter
-    const interval = setInterval(() => {
-      setRecordingDuration(prev => prev + 1);
-    }, 1000);
-    
-    // Store interval for cleanup
-    (window as any).recordingInterval = interval;
+    try {
+      // Call Python API to start recording
+      await apiCall(API_CONFIG.ENDPOINTS.START_RECORDING, {
+        method: 'POST',
+        body: JSON.stringify({ order_number: orderNumber })
+      });
+      
+      setIsRecording(true);
+      setRecordingDuration(0);
+      toast.success(`Recording started for order ${orderNumber}`);
+      
+      // Start duration counter
+      const interval = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+      
+      (window as any).recordingInterval = interval;
+    } catch (error) {
+      toast.error("Failed to start recording. Check system connection.");
+      console.error("Start recording error:", error);
+    }
   };
 
-  const handleStopRecording = () => {
-    setIsRecording(false);
-    clearInterval((window as any).recordingInterval);
-    toast.success(`Recording saved for order ${orderNumber}`);
-    setOrderNumber("");
-    setRecordingDuration(0);
+  const handleStopRecording = async () => {
+    try {
+      // Call Python API to stop recording
+      await apiCall(API_CONFIG.ENDPOINTS.STOP_RECORDING, {
+        method: 'POST',
+        body: JSON.stringify({ order_number: orderNumber })
+      });
+      
+      setIsRecording(false);
+      clearInterval((window as any).recordingInterval);
+      toast.success(`Recording saved for order ${orderNumber}`);
+      setOrderNumber("");
+      setRecordingDuration(0);
+    } catch (error) {
+      toast.error("Failed to stop recording. Check system connection.");
+      console.error("Stop recording error:", error);
+      // Still stop the UI recording state even if API fails
+      setIsRecording(false);
+      clearInterval((window as any).recordingInterval);
+    }
   };
 
   const formatDuration = (seconds: number) => {
